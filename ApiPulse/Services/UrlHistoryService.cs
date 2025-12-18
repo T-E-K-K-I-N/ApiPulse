@@ -2,13 +2,24 @@ using System.Text.Json;
 
 namespace ApiPulse.Services;
 
+/// <summary>
+/// Сервис для сохранения и загрузки истории использованных URL-адресов.
+/// История хранится в JSON-файле в папке LocalApplicationData.
+/// </summary>
 public sealed class UrlHistoryService : IUrlHistoryService
 {
+    /// <summary>
+    /// Максимальное количество URL-адресов в истории.
+    /// </summary>
     private const int MaxHistorySize = 5;
+
     private readonly string _historyFilePath;
     private readonly List<string> _urls = new();
     private readonly object _lock = new();
 
+    /// <summary>
+    /// Инициализирует новый экземпляр сервиса и создаёт директорию для хранения истории при необходимости.
+    /// </summary>
     public UrlHistoryService()
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -17,6 +28,7 @@ public sealed class UrlHistoryService : IUrlHistoryService
         _historyFilePath = Path.Combine(apiPulsePath, "url_history.json");
     }
 
+    /// <inheritdoc />
     public IReadOnlyList<string> GetRecentUrls()
     {
         lock (_lock)
@@ -25,6 +37,7 @@ public sealed class UrlHistoryService : IUrlHistoryService
         }
     }
 
+    /// <inheritdoc />
     public void AddUrl(string url)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -42,6 +55,7 @@ public sealed class UrlHistoryService : IUrlHistoryService
         }
     }
 
+    /// <inheritdoc />
     public async Task LoadAsync()
     {
         if (!File.Exists(_historyFilePath))
@@ -67,6 +81,7 @@ public sealed class UrlHistoryService : IUrlHistoryService
         }
     }
 
+    /// <inheritdoc />
     public async Task SaveAsync()
     {
         List<string> urlsCopy;

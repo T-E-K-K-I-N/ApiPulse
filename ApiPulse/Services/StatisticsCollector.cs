@@ -3,12 +3,17 @@ using ApiPulse.Models;
 
 namespace ApiPulse.Services;
 
+/// <summary>
+/// Потокобезопасный коллектор статистики для нагрузочного тестирования.
+/// Использует <see cref="ConcurrentBag{T}"/> и атомарные операции для безопасного доступа из нескольких потоков.
+/// </summary>
 public sealed class StatisticsCollector : IStatisticsCollector
 {
     private readonly ConcurrentBag<RequestResult> _results = new();
     private int _successCount;
     private int _failureCount;
 
+    /// <inheritdoc />
     public void RecordResult(RequestResult result)
     {
         _results.Add(result);
@@ -18,12 +23,16 @@ public sealed class StatisticsCollector : IStatisticsCollector
             Interlocked.Increment(ref _failureCount);
     }
 
+    /// <inheritdoc />
     public int GetCurrentRequestCount() => _results.Count;
 
+    /// <inheritdoc />
     public int GetSuccessCount() => Volatile.Read(ref _successCount);
 
+    /// <inheritdoc />
     public int GetFailureCount() => Volatile.Read(ref _failureCount);
 
+    /// <inheritdoc />
     public void Reset()
     {
         _results.Clear();
@@ -31,6 +40,46 @@ public sealed class StatisticsCollector : IStatisticsCollector
         Interlocked.Exchange(ref _failureCount, 0);
     }
 
+    /// <inheritdoc />
+    public ChartData GetChartData(DateTime startTime)
+    {
+        var results = _results.ToArray();
+
+        var responseTimeSeries = results
+            .GroupBy(r => (int)(r.Timestamp - startTime).TotalSeconds)
+            .OrderBy(g => g.Key)
+            .Select(g => new TimeSeriesPoint(g.Key, g.Average(r => r.ResponseTimeMs)))
+            .ToList();
+
+        var requestsPerSecondSeries = results
+            .GroupBy(r => (int)(r.Timestamp - startTime).TotalSeconds)
+            .OrderBy(g => g.Key)
+            .Select(g => new TimeSeriesPoint(g.Key, g.Count()))
+            .ToList();
+
+        var statusCodeDistribution = results
+            .GroupBy(r => r.StatusCode)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var responseTimeDistribution = new Dictionary<string, int>
+        {
+            ["0-100 мс"] = results.Count(r => r.ResponseTimeMs <= 100),
+            ["100-300 мс"] = results.Count(r => r.ResponseTimeMs > 100 && r.ResponseTimeMs <= 300),
+            ["300-500 мс"] = results.Count(r => r.ResponseTimeMs > 300 && r.ResponseTimeMs <= 500),
+            ["500-1000 мс"] = results.Count(r => r.ResponseTimeMs > 500 && r.ResponseTimeMs <= 1000),
+            [">1000 мс"] = results.Count(r => r.ResponseTimeMs > 1000)
+        };
+
+        return new ChartData
+        {
+            ResponseTimeSeries = responseTimeSeries,
+            RequestsPerSecondSeries = requestsPerSecondSeries,
+            StatusCodeDistribution = statusCodeDistribution,
+            ResponseTimeDistribution = responseTimeDistribution
+        };
+    }
+
+    /// <inheritdoc />
     public LoadTestStatistics GetStatistics(LoadTestConfiguration config, DateTime startTime, DateTime endTime)
     {
         var results = _results.ToArray();
@@ -85,6 +134,12 @@ public sealed class StatisticsCollector : IStatisticsCollector
         };
     }
 
+    /// <summary>
+    /// Вычисляет значение перцентиля для отсортированного массива значений.
+    /// </summary>
+    /// <param name="sortedValues">Отсортированный массив значений времени ответа.</param>
+    /// <param name="percentile">Номер перцентиля (0-100).</param>
+    /// <returns>Значение указанного перцентиля.</returns>
     private static double CalculatePercentile(long[] sortedValues, int percentile)
     {
         if (sortedValues.Length == 0)

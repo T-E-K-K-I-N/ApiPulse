@@ -3,10 +3,18 @@ using Spectre.Console;
 
 namespace ApiPulse.UI;
 
+/// <summary>
+/// Реализация консольного UI с использованием библиотеки Spectre.Console.
+/// Предоставляет богатый визуальный интерфейс с цветами, таблицами и индикаторами прогресса.
+/// </summary>
 public sealed class SpectreConsoleUI : IConsoleUI
 {
+    /// <summary>
+    /// Текст опции для ввода нового URL в меню выбора.
+    /// </summary>
     private const string NewUrlOption = "[cyan]Ввести новый URL[/]";
 
+    /// <inheritdoc />
     public LoadTestConfiguration GetConfigurationFromUser(IReadOnlyList<string> urlHistory)
     {
         AnsiConsole.Write(new FigletText("ApiPulse").Color(Color.Cyan1));
@@ -56,6 +64,7 @@ public sealed class SpectreConsoleUI : IConsoleUI
         };
     }
 
+    /// <inheritdoc />
     public bool ConfirmStart(LoadTestConfiguration config)
     {
         AnsiConsole.WriteLine();
@@ -92,12 +101,13 @@ public sealed class SpectreConsoleUI : IConsoleUI
         return AnsiConsole.Confirm("Запустить нагрузочный тест?");
     }
 
-    public async Task<LoadTestStatistics> DisplayProgressAsync(
+    /// <inheritdoc />
+    public async Task<LoadTestResult> DisplayProgressAsync(
         LoadTestConfiguration config,
-        Func<IProgress<LoadTestProgress>, CancellationToken, Task<LoadTestStatistics>> runTest,
+        Func<IProgress<LoadTestProgress>, CancellationToken, Task<LoadTestResult>> runTest,
         CancellationToken cancellationToken)
     {
-        LoadTestStatistics? result = null;
+        LoadTestResult? result = null;
 
         await AnsiConsole.Progress()
             .AutoRefresh(true)
@@ -126,6 +136,7 @@ public sealed class SpectreConsoleUI : IConsoleUI
         return result!;
     }
 
+    /// <inheritdoc />
     public void DisplayResults(LoadTestStatistics stats)
     {
         AnsiConsole.WriteLine();
@@ -164,12 +175,14 @@ public sealed class SpectreConsoleUI : IConsoleUI
         AnsiConsole.Write(table);
     }
 
+    /// <inheritdoc />
     public bool AskToSaveResults()
     {
         AnsiConsole.WriteLine();
         return AnsiConsole.Confirm("Сохранить результаты в файл?");
     }
 
+    /// <inheritdoc />
     public string? AskForSavePath()
     {
         var path = AnsiConsole.Prompt(
@@ -180,21 +193,39 @@ public sealed class SpectreConsoleUI : IConsoleUI
         return string.IsNullOrWhiteSpace(path) ? null : path;
     }
 
+    /// <inheritdoc />
     public void DisplayFileSaved(string filename)
     {
         AnsiConsole.MarkupLine($"[green]Результаты сохранены в:[/] [cyan]{filename}[/]");
     }
 
+    /// <inheritdoc />
+    public void DisplayChartsSaved(IReadOnlyList<string> filenames)
+    {
+        AnsiConsole.MarkupLine("[green]Графики сохранены:[/]");
+        foreach (var filename in filenames)
+        {
+            AnsiConsole.MarkupLine($"  [cyan]{filename}[/]");
+        }
+    }
+
+    /// <inheritdoc />
     public void DisplayError(string message)
     {
         AnsiConsole.MarkupLine($"[red]Ошибка: {message}[/]");
     }
 
+    /// <inheritdoc />
     public void DisplayCancelled()
     {
         AnsiConsole.MarkupLine("[yellow]Тест был отменён.[/]");
     }
 
+    /// <summary>
+    /// Форматирует время ответа с цветовой индикацией.
+    /// </summary>
+    /// <param name="ms">Время в миллисекундах.</param>
+    /// <returns>Отформатированная строка с цветовой разметкой.</returns>
     private static string FormatTime(double ms) => ms switch
     {
         < 100 => $"[green]{ms:F0} мс[/]",
@@ -202,6 +233,11 @@ public sealed class SpectreConsoleUI : IConsoleUI
         _ => $"[red]{ms:F0} мс[/]"
     };
 
+    /// <summary>
+    /// Форматирует процент успешных запросов с цветовой индикацией.
+    /// </summary>
+    /// <param name="rate">Процент успешных запросов.</param>
+    /// <returns>Отформатированная строка с цветовой разметкой.</returns>
     private static string FormatSuccessRate(double rate) => rate switch
     {
         >= 99 => $"[green]{rate:F2}%[/]",
@@ -209,6 +245,11 @@ public sealed class SpectreConsoleUI : IConsoleUI
         _ => $"[red]{rate:F2}%[/]"
     };
 
+    /// <summary>
+    /// Получает URL от пользователя: либо из истории, либо новый.
+    /// </summary>
+    /// <param name="urlHistory">История URL-адресов.</param>
+    /// <returns>Выбранный или введённый URL.</returns>
     private string GetUrlFromUserOrHistory(IReadOnlyList<string> urlHistory)
     {
         if (urlHistory.Count == 0)
@@ -229,6 +270,10 @@ public sealed class SpectreConsoleUI : IConsoleUI
         return selection == NewUrlOption ? PromptForNewUrl() : selection;
     }
 
+    /// <summary>
+    /// Запрашивает ввод нового URL с валидацией.
+    /// </summary>
+    /// <returns>Валидный URL.</returns>
     private static string PromptForNewUrl()
     {
         return AnsiConsole.Prompt(
@@ -246,6 +291,10 @@ public sealed class SpectreConsoleUI : IConsoleUI
                 }));
     }
 
+    /// <summary>
+    /// Запрашивает выбор HTTP-метода у пользователя.
+    /// </summary>
+    /// <returns>Выбранный HTTP-метод.</returns>
     private static HttpMethod GetHttpMethodFromUser()
     {
         var methodChoice = AnsiConsole.Prompt(
@@ -264,6 +313,10 @@ public sealed class SpectreConsoleUI : IConsoleUI
         };
     }
 
+    /// <summary>
+    /// Запрашивает query-параметры у пользователя.
+    /// </summary>
+    /// <returns>Словарь параметров или null, если пользователь отказался.</returns>
     private static Dictionary<string, string>? GetQueryParametersFromUser()
     {
         var addParams = AnsiConsole.Confirm("Добавить [green]query параметры[/]?", false);
@@ -300,6 +353,10 @@ public sealed class SpectreConsoleUI : IConsoleUI
         return parameters.Count > 0 ? parameters : null;
     }
 
+    /// <summary>
+    /// Запрашивает тело запроса и Content-Type у пользователя.
+    /// </summary>
+    /// <returns>Кортеж из тела запроса и Content-Type.</returns>
     private static (string? Body, string ContentType) GetRequestBodyFromUser()
     {
         var addBody = AnsiConsole.Confirm("Добавить [green]тело запроса[/]?", false);

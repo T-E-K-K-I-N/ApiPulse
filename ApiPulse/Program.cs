@@ -1,3 +1,11 @@
+// ============================================================================
+// ApiPulse - Инструмент нагрузочного тестирования REST API
+// ============================================================================
+// Точка входа приложения. Поддерживает два режима работы:
+// 1. Интерактивный режим - запуск без аргументов, диалоговый ввод параметров
+// 2. CLI режим - передача параметров через аргументы командной строки
+// ============================================================================
+
 using ApiPulse.Extensions;
 using ApiPulse.Models;
 using ApiPulse.Services;
@@ -14,6 +22,7 @@ var consoleUI = serviceProvider.GetRequiredService<IConsoleUI>();
 var loadTestService = serviceProvider.GetRequiredService<ILoadTestService>();
 var resultExporter = serviceProvider.GetRequiredService<IResultExporter>();
 var urlHistoryService = serviceProvider.GetRequiredService<IUrlHistoryService>();
+var chartService = serviceProvider.GetRequiredService<IChartService>();
 
 // Load URL history
 await urlHistoryService.LoadAsync();
@@ -147,13 +156,16 @@ try
     };
 
     // Run the test with progress display
-    var stats = await consoleUI.DisplayProgressAsync(
+    var testResult = await consoleUI.DisplayProgressAsync(
         config,
         (progress, ct) => loadTestService.RunLoadTestAsync(config, progress, ct),
         cts.Token);
 
     // Display results
-    consoleUI.DisplayResults(stats);
+    consoleUI.DisplayResults(testResult.Statistics);
+
+    // Display console charts
+    chartService.DisplayConsoleCharts(testResult.ChartData, testResult.Statistics);
 
     // Ask about file export (only in interactive mode) or auto-save in CLI mode
     if (isInteractive)
@@ -161,15 +173,25 @@ try
         if (consoleUI.AskToSaveResults())
         {
             var customPath = consoleUI.AskForSavePath();
-            var filename = await resultExporter.ExportToFileAsync(stats, customPath);
+            var filename = await resultExporter.ExportToFileAsync(testResult.Statistics, customPath);
             consoleUI.DisplayFileSaved(filename);
+
+            // Export charts to the same directory as the results file
+            var chartDirectory = Path.GetDirectoryName(filename) ?? Directory.GetCurrentDirectory();
+            var chartFiles = await chartService.ExportChartsToPngAsync(testResult.ChartData, testResult.Statistics, chartDirectory);
+            consoleUI.DisplayChartsSaved(chartFiles);
         }
     }
     else
     {
         // Auto-save in CLI mode
-        var filename = await resultExporter.ExportToFileAsync(stats);
+        var filename = await resultExporter.ExportToFileAsync(testResult.Statistics);
         consoleUI.DisplayFileSaved(filename);
+
+        // Export charts to the same directory as the results file
+        var chartDirectory = Path.GetDirectoryName(filename) ?? Directory.GetCurrentDirectory();
+        var chartFiles = await chartService.ExportChartsToPngAsync(testResult.ChartData, testResult.Statistics, chartDirectory);
+        consoleUI.DisplayChartsSaved(chartFiles);
     }
 
     return 0;
@@ -185,6 +207,11 @@ catch (Exception ex)
     return 1;
 }
 
+/// <summary>
+/// Парсит строку query-параметров в словарь.
+/// </summary>
+/// <param name="queryStr">Строка параметров в формате "key1=value1&amp;key2=value2".</param>
+/// <returns>Словарь параметров или null, если строка пуста.</returns>
 static Dictionary<string, string>? ParseQueryParameters(string queryStr)
 {
     if (string.IsNullOrWhiteSpace(queryStr))

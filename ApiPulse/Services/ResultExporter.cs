@@ -3,8 +3,12 @@ using ApiPulse.Models;
 
 namespace ApiPulse.Services;
 
+/// <summary>
+/// Сервис для экспорта результатов нагрузочного тестирования в текстовые файлы.
+/// </summary>
 public sealed class ResultExporter : IResultExporter
 {
+    /// <inheritdoc />
     public async Task<string> ExportToFileAsync(LoadTestStatistics stats, string? customPath = null)
     {
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");

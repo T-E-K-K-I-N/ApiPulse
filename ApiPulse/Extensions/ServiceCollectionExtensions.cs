@@ -5,8 +5,17 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ApiPulse.Extensions;
 
+/// <summary>
+/// Методы расширения для регистрации сервисов ApiPulse в контейнере зависимостей.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Регистрирует все сервисы ApiPulse в контейнере зависимостей.
+    /// Включает HttpClient с политиками Polly, сервисы тестирования, UI и экспорта.
+    /// </summary>
+    /// <param name="services">Коллекция сервисов для регистрации.</param>
+    /// <returns>Коллекция сервисов для цепочки вызовов.</returns>
     public static IServiceCollection AddApiPulseServices(this IServiceCollection services)
     {
         // Register HttpClient with Polly policies
@@ -23,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ILoadTestService, LoadTestService>();
         services.AddTransient<IResultExporter, ResultExporter>();
         services.AddTransient<IConsoleUI, SpectreConsoleUI>();
+        services.AddTransient<IChartService, ChartService>();
 
         return services;
     }

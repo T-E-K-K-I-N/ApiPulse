@@ -3,18 +3,28 @@ using ApiPulse.Models;
 
 namespace ApiPulse.Services;
 
+/// <summary>
+/// Сервис для выполнения нагрузочного тестирования API.
+/// Управляет параллельными рабочими потоками и сбором результатов.
+/// </summary>
 public sealed class LoadTestService : ILoadTestService
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IStatisticsCollector _statisticsCollector;
 
+    /// <summary>
+    /// Инициализирует новый экземпляр сервиса нагрузочного тестирования.
+    /// </summary>
+    /// <param name="httpClientFactory">Фабрика для создания HTTP-клиентов.</param>
+    /// <param name="statisticsCollector">Коллектор для сбора статистики запросов.</param>
     public LoadTestService(IHttpClientFactory httpClientFactory, IStatisticsCollector statisticsCollector)
     {
         _httpClientFactory = httpClientFactory;
         _statisticsCollector = statisticsCollector;
     }
 
-    public async Task<LoadTestStatistics> RunLoadTestAsync(
+    /// <inheritdoc />
+    public async Task<LoadTestResult> RunLoadTestAsync(
         LoadTestConfiguration config,
         IProgress<LoadTestProgress> progress,
         CancellationToken cancellationToken)
@@ -66,9 +76,20 @@ public sealed class LoadTestService : ILoadTestService
             FailureCount = _statisticsCollector.GetFailureCount()
         });
 
-        return _statisticsCollector.GetStatistics(config, startTime, endTime);
+        return new LoadTestResult
+        {
+            Statistics = _statisticsCollector.GetStatistics(config, startTime, endTime),
+            ChartData = _statisticsCollector.GetChartData(startTime)
+        };
     }
 
+    /// <summary>
+    /// Асинхронно отправляет отчёты о прогрессе выполнения теста.
+    /// </summary>
+    /// <param name="config">Конфигурация теста.</param>
+    /// <param name="stopwatch">Секундомер для измерения прошедшего времени.</param>
+    /// <param name="progress">Интерфейс для отчёта о прогрессе.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
     private async Task ReportProgressAsync(
         LoadTestConfiguration config,
         Stopwatch stopwatch,
@@ -97,6 +118,11 @@ public sealed class LoadTestService : ILoadTestService
         }
     }
 
+    /// <summary>
+    /// Выполняет рабочий цикл отправки HTTP-запросов до отмены токена.
+    /// </summary>
+    /// <param name="config">Конфигурация теста.</param>
+    /// <param name="cancellationToken">Токен отмены.</param>
     private async Task ExecuteWorkerAsync(LoadTestConfiguration config, CancellationToken cancellationToken)
     {
         var client = _httpClientFactory.CreateClient("LoadTest");
@@ -156,6 +182,11 @@ public sealed class LoadTestService : ILoadTestService
         }
     }
 
+    /// <summary>
+    /// Строит URI с добавлением параметров строки запроса из конфигурации.
+    /// </summary>
+    /// <param name="config">Конфигурация теста, содержащая URL и параметры запроса.</param>
+    /// <returns>Сформированный URI с параметрами запроса.</returns>
     private static Uri BuildUriWithQueryParameters(LoadTestConfiguration config)
     {
         if (config.QueryParameters == null || config.QueryParameters.Count == 0)
@@ -175,6 +206,12 @@ public sealed class LoadTestService : ILoadTestService
         return uriBuilder.Uri;
     }
 
+    /// <summary>
+    /// Создаёт HTTP-запрос на основе конфигурации теста.
+    /// </summary>
+    /// <param name="config">Конфигурация теста.</param>
+    /// <param name="targetUri">Целевой URI для запроса.</param>
+    /// <returns>Сконфигурированный HTTP-запрос.</returns>
     private static HttpRequestMessage CreateHttpRequest(LoadTestConfiguration config, Uri targetUri)
     {
         var request = new HttpRequestMessage(config.HttpMethod, targetUri);
